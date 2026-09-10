@@ -1,19 +1,8 @@
 """Tuya BLE Beacon Protocol frame codec — reverse-engineered from Smart Life
 classes14.dex (com.thingclips.sdk.bluetooth.pbddddb / ddbqqbd / bbdqqbd).
 
-Copied unmodified from the original research repo except for one thing: the
-original file's `_self_test()` re-encoded a real captured frame from one
-specific device's real pairing (embedding that device's real LOCAL_KEY/
-APP_KEY plus a real captured frame's bytes) to prove `encode_frame` byte-for-
-byte correct — the strongest possible check, but not something that can be
-committed to a public repo, since the fixture itself is derived from real
-secret key material. That test (and its embedded secrets) has been removed
-here. See PLAN.md's "Secrets handling" section for what to write instead: a
-synthetic round-trip test using arbitrary non-secret keys, which proves the
-algorithm without needing anyone's real pairing data.
-
-Every function below is otherwise untouched and takes key material as plain
-parameters — nothing here is specific to any one device/account.
+Pure functions, all key material passed in as plain parameters — nothing
+here is specific to any one device/account.
 """
 
 DELTA = 0x9E3779B9
@@ -170,9 +159,3 @@ def encode_frame(
     ciphertext_xored = xor_bytes(ciphertext, app_key)
     inner = header8 + ciphertext_xored
     return bytes([lead_byte]) + inner + bytes([trailer_crc])
-
-
-# NOTE: the original file's `_self_test()` (real-frame regression check) and
-# `__main__` demo block (which also embedded real key material) were removed
-# here — see the module docstring above. Write a synthetic-keys version of
-# both before relying on this file.

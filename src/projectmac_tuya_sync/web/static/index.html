@@ -1,0 +1,199 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>projectMac-tuya-sync</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #111; color: #eee; padding: 1.5rem; max-width: 480px; margin: 0 auto; }
+  h1 { font-size: 1.1rem; opacity: 0.7; margin-top: 2rem; }
+  h2 { font-size: 0.85rem; opacity: 0.6; margin: 1rem 0 0.4rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  #swatch { width: 100%; height: 100px; border-radius: 8px; margin: 1rem 0; border: 1px solid #333; }
+  .row { display: flex; justify-content: space-between; margin: 0.4rem 0; font-variant-numeric: tabular-nums; }
+  .section { border: 1px solid #333; border-radius: 8px; padding: 0.8rem; margin-top: 0.6rem; }
+  input[type=color] { width: 100%; height: 3rem; margin: 0.5rem 0; }
+  input[type=range] { width: 100%; margin: 0.3rem 0; }
+  .effect-buttons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-bottom: 0.6rem; }
+  .color-toggles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem; margin: 0.5rem 0 0.8rem; }
+  button { padding: 0.7rem; font-size: 0.95rem; border-radius: 6px; border: none; background: #333; color: #eee; }
+  button.active { background: #4a7; color: #111; }
+  .color-toggles button { padding: 0.5rem; font-size: 0.75rem; opacity: 0.35; border: 2px solid transparent; color: #fff; text-shadow: 0 0 3px #000, 0 0 3px #000; }
+  .color-toggles button[hidden] { display: none; }
+  .color-toggles button.active { opacity: 1; border-color: #fff; }
+  #release { width: 100%; margin-top: 0.6rem; }
+  #status { font-size: 0.8rem; opacity: 0.5; margin-top: 1.5rem; }
+  .slider-label { display: flex; justify-content: space-between; font-size: 0.85rem; opacity: 0.8; }
+</style>
+</head>
+<body>
+<h1>projectMac-tuya-sync</h1>
+<div id="swatch"></div>
+<div class="row"><span>rate (bpm)</span><span id="bpm">-</span></div>
+<div class="row"><span>preset</span><span id="preset">-</span></div>
+<div class="row"><span>override</span><span id="override-status">automatic</span></div>
+
+<h1>lamp mode</h1>
+<select id="mode-select">
+  <option value="color">continuous color-follow</option>
+  <option value="pattern">rate-matched pattern</option>
+  <option value="combined" selected>combined</option>
+</select>
+
+<h1>manual override</h1>
+
+<div class="section">
+  <h2>dp=11 — arbitrary color</h2>
+  <input type="color" id="picker" value="#ff8800">
+</div>
+
+<div class="section">
+  <h2>dp=73 — pattern effects</h2>
+  <div class="effect-buttons">
+    <button data-pattern="static">Static</button>
+    <button data-pattern="jump">Jump</button>
+    <button data-pattern="gradient">Gradient</button>
+    <button data-pattern="flash">Flash</button>
+    <button data-pattern="breath">Breath</button>
+  </div>
+  <div class="color-toggles">
+    <!-- Only these combinations are valid on real hardware (re-verified
+         against the Smart Life app's own preset menus, 2026-09-10) --
+         which ones apply depends on the selected pattern (data-patterns). -->
+    <button data-color-bit="1" data-patterns="static,flash,breath" style="background:#e33">Red</button>
+    <button data-color-bit="4" data-patterns="static,flash,breath" style="background:#3c3">Green</button>
+    <button data-color-bit="2" data-patterns="static,flash,breath" style="background:#33e">Blue</button>
+    <button data-color-bit="16" data-patterns="static,flash,breath" style="background:#ec3">Yellow</button>
+    <button data-color-bit="8" data-patterns="static,flash,breath" style="background:#3cc">Cyan</button>
+    <button data-color-bit="32" data-patterns="static,flash,breath" style="background:#a3e">Purple</button>
+    <button data-color-bit="64" data-patterns="static,flash,breath" style="background:#eee">White</button>
+    <button data-color-bit="7" data-patterns="jump,gradient,flash,breath" style="background:linear-gradient(90deg,#e33,#3c3,#33e)">Tricolor</button>
+    <button data-color-bit="120" data-patterns="jump,gradient,flash,breath" style="background:linear-gradient(90deg,#ec3,#3cc,#a3e,#eee)">Four-color</button>
+    <button data-color-bit="127" data-patterns="jump,gradient,flash,breath" style="background:linear-gradient(90deg,#e33,#3c3,#33e,#ec3,#3cc,#a3e,#eee)">Seven-color</button>
+    <button data-color-bit="5" data-patterns="jump,gradient" style="background:linear-gradient(90deg,#e33,#3c3)">Red-Green</button>
+    <button data-color-bit="3" data-patterns="jump,gradient" style="background:linear-gradient(90deg,#e33,#33e)">Red-Blue</button>
+    <button data-color-bit="6" data-patterns="jump,gradient" style="background:linear-gradient(90deg,#3c3,#33e)">Green-Blue</button>
+  </div>
+  <div class="slider-label"><span>speed</span><span id="speed-value">50</span></div>
+  <input type="range" id="speed-slider" min="0" max="100" value="50">
+  <div class="slider-label"><span>brightness</span><span id="brightness-value">100</span></div>
+  <input type="range" id="brightness-slider" min="0" max="100" value="100">
+</div>
+
+<button id="release">release override</button>
+<div id="status">connecting…</div>
+
+<script>
+const ws = new WebSocket(`ws://${location.host}/ws`);
+const swatch = document.getElementById("swatch");
+const bpm = document.getElementById("bpm");
+const preset = document.getElementById("preset");
+const overrideStatus = document.getElementById("override-status");
+const modeSelect = document.getElementById("mode-select");
+const status = document.getElementById("status");
+const picker = document.getElementById("picker");
+const effectButtons = document.querySelectorAll("[data-pattern]");
+const colorToggleButtons = document.querySelectorAll("[data-color-bit]");
+const speedSlider = document.getElementById("speed-slider");
+const speedValue = document.getElementById("speed-value");
+const brightnessSlider = document.getElementById("brightness-slider");
+const brightnessValue = document.getElementById("brightness-value");
+
+ws.onopen = () => status.textContent = "connected";
+ws.onclose = () => status.textContent = "disconnected";
+
+let modeSelectFocused = false;
+modeSelect.addEventListener("focus", () => modeSelectFocused = true);
+modeSelect.addEventListener("blur", () => modeSelectFocused = false);
+
+let selectedPattern = null;
+let selectedColors = null; // no valid default until a pattern is picked -- the valid set differs per pattern
+
+// The lamp doesn't support arbitrary color-bit combinations -- only the
+// fixed presets each button represents, and which presets are valid
+// depends on the selected pattern (see lamp_command_protocol.py's
+// VALID_COLORS_BY_PATTERN). So this is always exclusive-select (one preset
+// active at a time), and only buttons valid for the current pattern show.
+function renderColorToggles() {
+  colorToggleButtons.forEach(b => {
+    const validForPattern = b.dataset.patterns.split(",").includes(selectedPattern);
+    b.hidden = !validForPattern;
+    b.classList.toggle("active", validForPattern && Number(b.dataset.colorBit) === selectedColors);
+  });
+}
+renderColorToggles();
+
+ws.onmessage = (ev) => {
+  const d = JSON.parse(ev.data);
+  swatch.style.background = `hsl(${d.hue}, ${d.saturation}%, ${d.brightness / 2}%)`;
+  bpm.textContent = d.rate_bpm.toFixed(1);
+  preset.textContent = d.preset_name || "-";
+  overrideStatus.textContent = d.override_active
+    ? `manual override (${d.override_kind})`
+    : "automatic";
+  if (!modeSelectFocused) modeSelect.value = d.mode;
+
+  if (d.override_active && d.override_kind === "pattern") {
+    selectedPattern = d.override_pattern;
+    selectedColors = d.override_colors;
+    renderColorToggles();
+  }
+  effectButtons.forEach(b => b.classList.toggle("active", b.dataset.pattern === selectedPattern));
+};
+
+picker.addEventListener("change", () => {
+  // "change" (fires once, on commit) rather than "input" (fires
+  // continuously, including spuriously just from opening the picker on
+  // some browsers) -- avoids activating the override without real intent.
+  ws.send(JSON.stringify({ type: "override_set", color: picker.value }));
+});
+
+document.getElementById("release").addEventListener("click", () => {
+  selectedPattern = null;
+  selectedColors = null;
+  renderColorToggles();
+  ws.send(JSON.stringify({ type: "override_release" }));
+});
+
+modeSelect.addEventListener("change", () => {
+  ws.send(JSON.stringify({ type: "mode_set", mode: modeSelect.value }));
+});
+
+function sendPatternOverride() {
+  if (!selectedPattern || selectedColors === null) return; // need both a pattern and a valid color preset
+  ws.send(JSON.stringify({
+    type: "override_pattern_set",
+    pattern: selectedPattern,
+    colors: selectedColors,
+    speed: Number(speedSlider.value),
+    brightness: Number(brightnessSlider.value),
+  }));
+}
+
+effectButtons.forEach(b => b.addEventListener("click", () => {
+  selectedPattern = b.dataset.pattern;
+  // the previously selected color preset may not be valid for the new
+  // pattern -- default to the first valid one shown for it instead.
+  const firstValid = [...colorToggleButtons].find(cb => cb.dataset.patterns.split(",").includes(selectedPattern));
+  selectedColors = firstValid ? Number(firstValid.dataset.colorBit) : null;
+  renderColorToggles();
+  sendPatternOverride();
+}));
+
+colorToggleButtons.forEach(b => b.addEventListener("click", () => {
+  selectedColors = Number(b.dataset.colorBit); // always exclusive -- see renderColorToggles
+  renderColorToggles();
+  sendPatternOverride();
+}));
+
+speedSlider.addEventListener("input", () => {
+  speedValue.textContent = speedSlider.value;
+  sendPatternOverride();
+});
+
+brightnessSlider.addEventListener("input", () => {
+  brightnessValue.textContent = brightnessSlider.value;
+  sendPatternOverride();
+});
+</script>
+</body>
+</html>

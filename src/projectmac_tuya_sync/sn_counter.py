@@ -16,9 +16,6 @@ falling into an unresponsive autonomous-cycling state that only cleared with
 a physical power cycle. RevisionCounter below persists it the same way
 SnCounter already persists sn, so it never repeats across process runs
 either.
-
-Copied unmodified from the original research repo — already generic, no
-secrets, no changes needed.
 """
 
 from __future__ import annotations

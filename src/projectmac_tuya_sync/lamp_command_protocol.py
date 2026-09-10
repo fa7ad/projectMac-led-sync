@@ -1,26 +1,12 @@
 """Build ready-to-broadcast Tuya BLE beacon frames for this lamp's DPs
 (data points), using the codec in tuya_beacon_codec.py.
 
-Copied/adapted from the original research repo's lamp_command.py, with two
-changes: (1) LOCAL_KEY/APP_KEY/SRC_ADDR/DST_ADDR — real secrets specific to
-one device+account pairing — are no longer hardcoded here; they're imported
-from wherever this project's config module loads them (from a gitignored
-.env, see PLAN.md's "Secrets handling"). Wire up that import before this file
-will actually run — the `from config import ...` line below is a placeholder
-for whatever this project's real config module ends up being named/located.
-(2) comments that pointed at the private research repo's own narrative doc
-have been rewritten to stand on their own.
-
-Everything else — the DP layouts, byte offsets, which bits mean which
-color — is real reverse-engineered protocol knowledge and is unchanged.
+DP layouts, byte offsets, and which bits mean which color are real
+reverse-engineered protocol knowledge.
 """
 
-from tuya_beacon_codec import build_dp_payload, encode_frame
-
-# Placeholder — replace with this project's real config import once it
-# exists. Real values are specific to one device+account pairing and must
-# never be hardcoded/committed; see PLAN.md's "Secrets handling".
-from config import LOCAL_KEY, APP_KEY, SRC_ADDR, DST_ADDR  # noqa: F401 (see above)
+from .config import APP_KEY, DST_ADDR, LOCAL_KEY, SRC_ADDR
+from .tuya_beacon_codec import build_dp_payload, encode_frame
 
 DP_ID_SCENE = 73
 DP_ID_COLOR = 11
@@ -48,6 +34,41 @@ COLOR_WHITE = 0x40
 COLORS_TRICOLOR = COLOR_RED | COLOR_GREEN | COLOR_BLUE
 COLORS_FOUR_COLOR = COLOR_YELLOW | COLOR_CYAN | COLOR_PURPLE | COLOR_WHITE
 COLORS_SEVEN_COLOR = 0x7F
+COLORS_RED_GREEN = COLOR_RED | COLOR_GREEN
+COLORS_RED_BLUE = COLOR_RED | COLOR_BLUE
+COLORS_GREEN_BLUE = COLOR_GREEN | COLOR_BLUE
+
+# The lamp's Smart Life app preset menus don't expose every valid
+# combination — re-verified directly against the app's own menus
+# (2026-09-10), then real-device tested further. static has no combo
+# presets, only solo colors; jump/gradient add the 3 pairwise RGB combos on
+# top of the 3 named combos; breath has the full solo set. flash's menu is
+# missing a solo blue preset, but a direct real-device test (bypassing the
+# app entirely) confirmed the lamp flashes blue just fine -- that's a Smart
+# Life app UI restriction (plausibly avoiding emergency-vehicle-light
+# resemblance), not a firmware limitation, so blue is included here.
+# build_scene_effect_frame enforces this table either way.
+VALID_COLORS_BY_PATTERN = {
+    PATTERN_STATIC: (
+        COLOR_RED, COLOR_GREEN, COLOR_BLUE, COLOR_YELLOW, COLOR_CYAN, COLOR_PURPLE, COLOR_WHITE,
+    ),
+    PATTERN_JUMP: (
+        COLORS_TRICOLOR, COLORS_FOUR_COLOR, COLORS_SEVEN_COLOR,
+        COLORS_RED_GREEN, COLORS_RED_BLUE, COLORS_GREEN_BLUE,
+    ),
+    PATTERN_GRADIENT: (
+        COLORS_TRICOLOR, COLORS_FOUR_COLOR, COLORS_SEVEN_COLOR,
+        COLORS_RED_GREEN, COLORS_RED_BLUE, COLORS_GREEN_BLUE,
+    ),
+    PATTERN_FLASH: (
+        COLORS_TRICOLOR, COLORS_FOUR_COLOR, COLORS_SEVEN_COLOR,
+        COLOR_RED, COLOR_GREEN, COLOR_BLUE, COLOR_YELLOW, COLOR_CYAN, COLOR_PURPLE, COLOR_WHITE,
+    ),
+    PATTERN_BREATH: (
+        COLORS_TRICOLOR, COLORS_FOUR_COLOR, COLORS_SEVEN_COLOR,
+        COLOR_RED, COLOR_GREEN, COLOR_BLUE, COLOR_YELLOW, COLOR_CYAN, COLOR_PURPLE, COLOR_WHITE,
+    ),
+}
 
 
 def build_speed_brightness_frame(speed: int, brightness: int, sn: int, scene: int = 0x02) -> bytes:
@@ -99,8 +120,10 @@ def build_scene_effect_frame(
     to 1 on every run. speed/brightness are 0-100, same byte-order note as
     `build_speed_brightness_frame` applies (byte[4]/byte[5] = speed/brightness).
     """
-    assert pattern in (PATTERN_STATIC, PATTERN_JUMP, PATTERN_GRADIENT, PATTERN_FLASH, PATTERN_BREATH)
-    assert 0 <= colors <= 0x7F
+    assert pattern in VALID_COLORS_BY_PATTERN
+    assert colors in VALID_COLORS_BY_PATTERN[pattern], (
+        f"colors=0x{colors:02x} is not a valid preset for this pattern (see VALID_COLORS_BY_PATTERN)"
+    )
     assert 0 <= speed <= 100
     assert 0 <= brightness <= 100
     assert 0 <= sn <= 0xFFFF
@@ -121,17 +144,23 @@ def build_scene_effect_frame(
 
 
 def build_color_frame(hue: int, saturation: int, brightness: int, sn: int) -> bytes:
-    """hue is 0-255 (degrees, NOT scaled to 360 — confirmed against real
-    captures for hue=0/120/240 = red/green/blue; behavior above 255 is
-    untested — Tuya's hue wheel is 0-359 but this DP only has one byte for
-    it). saturation and brightness are 0-100 (percent). This is the lamp's
-    arbitrary-static-color DP — no cycling/animation, unlike scene_data."""
-    assert 0 <= hue <= 255
+    """hue is 0-359 degrees, a 16-bit big-endian field (value bytes 0-1) —
+    NOT a single clipped byte as earlier assumed. Confirmed via a real BLE
+    capture of the Smart Life app's full color wheel (2026-09-10): picking
+    purple/pink shades produced value bytes like `01 2c` = 0x012c = 300
+    (true purple), `01 4a` = 330, `01 0e` = 270 — all with sane saturation
+    and constant brightness, exactly matching the shades picked. Earlier
+    captures (red=0/green=120/blue=240) all happened to have a zero high
+    byte simply because those hues are under 256, which is why byte[0] was
+    previously mistaken for an always-0x00 constant. saturation and
+    brightness are 0-100 (percent). This is the lamp's arbitrary-static-color
+    DP — no cycling/animation, unlike scene_data."""
+    assert 0 <= hue <= 359
     assert 0 <= saturation <= 100
     assert 0 <= brightness <= 100
     assert 0 <= sn <= 0xFFFF
 
-    value = bytes([0x00, hue, saturation, brightness])
+    value = bytes([hue >> 8, hue & 0xFF, saturation, brightness])
     plaintext = build_dp_payload(DP_ID_COLOR, dp_type=0, value=value)
 
     return encode_frame(
@@ -147,17 +176,15 @@ def build_color_frame(hue: int, saturation: int, brightness: int, sn: int) -> by
 
 
 def hex_to_hue_sat_bri(hex_color: str):
-    """'#RRGGBB' or 'RRGGBB' -> (hue 0-255, saturation 0-100, brightness 0-100).
+    """'#RRGGBB' or 'RRGGBB' -> (hue 0-359, saturation 0-100, brightness 0-100).
 
-    Hue is degrees DIRECTLY (confirmed: 240/120/0 = blue/green/red), not
-    scaled to a 0-255 range — a single byte can't hold the full 0-359 wheel,
-    so hues above 255 (roughly pink/magenta) are clipped to 255 here. Real
-    device behavior above 255 is untested; this is a best-effort clamp, not
-    a confirmed-correct mapping for that range.
+    Hue is degrees directly (confirmed: 240/120/0 = blue/green/red, and
+    270/300/330 = purple/magenta/pink via a real capture of the full color
+    wheel — see build_color_frame's docstring), not scaled to a 0-255 range.
     """
     import colorsys
     hex_color = hex_color.lstrip("#")
     r, g, b = (int(hex_color[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
     h, s, v = colorsys.rgb_to_hsv(r, g, b)
-    hue_deg = round(h * 360)
-    return min(255, hue_deg), round(s * 100), round(v * 100)
+    hue_deg = round(h * 360) % 360
+    return hue_deg, round(s * 100), round(v * 100)

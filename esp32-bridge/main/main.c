@@ -4,8 +4,8 @@
  * serial and broadcasts it as BLE advertising data exactly as given. Has
  * zero knowledge of the Tuya protocol itself (no keys, no frame encoding)
  * — that all happens upstream, before a frame ever reaches this firmware.
- * See ../../../PLAN.md and ../../tuya_beacon_codec.py for where these 26
- * bytes come from.
+ * See ../PLAN.md and ../src/projectmac_tuya_sync/tuya_beacon_codec.py for
+ * where these 26 bytes come from.
  *
  * Serial-only by design (115200 8N1): one line per frame, 52 ASCII hex
  * chars (the 26-byte encoded frame), terminated by '\n'. Malformed lines
