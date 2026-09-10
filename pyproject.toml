@@ -2,6 +2,7 @@
 name = "projectmac-tuya-sync"
 version = "0.1.0"
 description = "OSC scene-stream to Tuya BLE-beacon lamp bridge, relayed over an ESP32."
+license = "GPL-3.0-or-later"
 requires-python = ">=3.14"
 dependencies = [
     "python-osc>=1.9",
