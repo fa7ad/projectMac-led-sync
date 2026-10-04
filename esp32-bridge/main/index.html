@@ -1,0 +1,459 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>projectMac-sync</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            background: #111;
+            color: #eee;
+            padding: 1.5rem;
+            max-width: 480px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 1.1rem;
+            opacity: 0.7;
+            margin-top: 2rem;
+        }
+
+        h2 {
+            font-size: 0.85rem;
+            opacity: 0.6;
+            margin: 1rem 0 0.4rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        #swatch {
+            width: 100%;
+            height: 100px;
+            border-radius: 8px;
+            margin: 1rem 0;
+            border: 1px solid #333;
+        }
+
+        .row {
+            display: flex;
+            justify-content: space-between;
+            margin: 0.4rem 0;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .section {
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 0.8rem;
+            margin-top: 0.6rem;
+        }
+
+        /* CSS has no hsv(), but hwb() is HSV in disguise: whiteness = (1-s)*v,
+           blackness = 1-v -- so tracks and swatch show exactly what the lamp gets. */
+        .slider {
+            --thumb: #eee;
+            appearance: none;
+            height: 1.6rem;
+            border-radius: 0.8rem;
+            border: 1px solid #333;
+        }
+
+        .slider::-webkit-slider-thumb {
+            appearance: none;
+            width: 1.6rem;
+            height: 1.6rem;
+            border-radius: 50%;
+            background: var(--thumb);
+            border: 3px solid #fff;
+            box-shadow: 0 0 3px #000;
+        }
+
+        .slider::-moz-range-thumb {
+            width: 1.2rem;
+            height: 1.2rem;
+            border-radius: 50%;
+            background: var(--thumb);
+            border: 3px solid #fff;
+        }
+
+        .slider:disabled,
+        button:disabled {
+            opacity: 0.3;
+        }
+
+        .hsv {
+            --thumb: hwb(var(--h) calc((100 - var(--s)) * var(--v) / 100 * 1%) calc((100 - var(--v)) * 1%));
+        }
+
+        #speed-slider {
+            background: linear-gradient(90deg, #222, #4a7);
+        }
+
+        #brightness-slider {
+            background: linear-gradient(90deg, #000, #fff);
+        }
+
+        #hue {
+            background: linear-gradient(90deg, red, yellow, lime, cyan, blue, magenta, red);
+        }
+
+        #sat {
+            background: linear-gradient(90deg, hwb(var(--h) calc(var(--v) * 1%) calc((100 - var(--v)) * 1%)), hwb(var(--h) 0% calc((100 - var(--v)) * 1%)));
+        }
+
+        #bri {
+            background: linear-gradient(90deg, #000, hwb(var(--h) calc(100% - var(--s) * 1%) 0%));
+        }
+
+        input[type=range] {
+            width: 100%;
+            margin: 0.3rem 0;
+        }
+
+        .effect-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            margin-bottom: 0.6rem;
+        }
+
+        .effect-buttons.five {
+            grid-template-columns: repeat(5, 1fr);
+        }
+
+        .effect-buttons.five button {
+            padding: 0.7rem 0;
+            font-size: 0.8rem; /* "Gradient" fits a phone-width fifth */
+        }
+
+        .color-toggles {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.4rem;
+            margin: 0.5rem 0 0.8rem;
+        }
+
+        button {
+            padding: 0.7rem;
+            font-size: 0.95rem;
+            border-radius: 6px;
+            border: none;
+            background: #333;
+            color: #eee;
+        }
+
+        button.active {
+            background: #4a7;
+            color: #111;
+        }
+
+        .color-toggles button {
+            padding: 0.5rem;
+            font-size: 0.75rem;
+            opacity: 0.35;
+            border: 2px solid transparent;
+            color: #fff;
+            text-shadow: 0 0 3px #000, 0 0 3px #000;
+        }
+
+        .color-toggles button[hidden] {
+            display: none;
+        }
+
+        .color-toggles button.active {
+            opacity: 1;
+            border-color: #fff;
+        }
+
+        #release,
+        #latch {
+            width: 100%;
+            margin-top: 0.6rem;
+        }
+
+        .tempo-row {
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            gap: 0.5rem;
+            margin-top: 0.6rem;
+        }
+
+        #status {
+            font-size: 0.8rem;
+            opacity: 0.5;
+            margin-top: 1.5rem;
+        }
+
+        #preset {
+            text-align: right;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>projectMac-sync</h1>
+    <div id="swatch"></div>
+    <div class="row"><span>rate (bpm, driving the lamp)</span><span id="bpm">-</span></div>
+    <div class="row"><span>audio bpm</span><span id="tempo-bpm">-</span></div>
+    <div class="row"><span>visual bpm</span><span id="visual-bpm">-</span></div>
+    <div class="row"><span>preset</span><span id="preset">-</span></div>
+    <div class="row"><span>override</span><span id="override-status">automatic</span></div>
+
+    <h1>lamp mode</h1>
+    <div class="effect-buttons">
+        <button data-mode="color" title="continuous color-follow (dp=11)">Color</button>
+        <button data-mode="pattern" title="rate-matched pattern (dp=73)">Pattern</button>
+        <button data-mode="combined" title="pattern, with dp=11 for hues the palette can't show">Combined</button>
+    </div>
+
+    <h1>manual override</h1>
+
+    <div class="section">
+        <h2>dp=11 — arbitrary color</h2>
+        <div class="slider-label"><span>hue</span><span id="hue-value">30</span></div>
+        <input type="range" class="slider hsv" id="hue" min="0" max="359" value="30">
+        <div class="slider-label"><span>saturation</span><span id="sat-value">100</span></div>
+        <input type="range" class="slider hsv" id="sat" min="0" max="100" value="100">
+        <div class="slider-label"><span>brightness</span><span id="bri-value">100</span></div>
+        <input type="range" class="slider hsv" id="bri" min="0" max="100" value="100">
+        <button id="latch" title="freeze the color projectMac is driving right now">Latch current color</button>
+    </div>
+
+    <div class="section">
+        <h2>dp=73 — pattern effects</h2>
+        <div class="effect-buttons five">
+            <button data-pattern="static">Static</button>
+            <button data-pattern="jump">Jump</button>
+            <button data-pattern="gradient">Gradient</button>
+            <button data-pattern="flash">Flash</button>
+            <button data-pattern="breath">Breath</button>
+        </div>
+        <div class="color-toggles">
+            <!-- Only these combinations are valid on real hardware (re-verified
+         against the Smart Life app's own preset menus, 2026-09-10) --
+         which ones apply depends on the selected pattern (data-patterns). -->
+            <button data-color-bit="1" data-patterns="static,flash,breath" style="background:#e33">Red</button>
+            <button data-color-bit="4" data-patterns="static,flash,breath" style="background:#3c3">Green</button>
+            <button data-color-bit="2" data-patterns="static,flash,breath" style="background:#33e">Blue</button>
+            <button data-color-bit="16" data-patterns="static,flash,breath" style="background:#ec3">Yellow</button>
+            <button data-color-bit="8" data-patterns="static,flash,breath" style="background:#3cc">Cyan</button>
+            <button data-color-bit="32" data-patterns="static,flash,breath" style="background:#a3e">Purple</button>
+            <button data-color-bit="64" data-patterns="static,flash,breath" style="background:#eee">White</button>
+            <button data-color-bit="7" data-patterns="jump,gradient,flash,breath"
+                style="background:linear-gradient(90deg,#e33,#3c3,#33e)">Tricolor</button>
+            <button data-color-bit="120" data-patterns="jump,gradient,flash,breath"
+                style="background:linear-gradient(90deg,#ec3,#3cc,#a3e,#eee)">Four-color</button>
+            <button data-color-bit="127" data-patterns="jump,gradient,flash,breath"
+                style="background:linear-gradient(90deg,#e33,#3c3,#33e,#ec3,#3cc,#a3e,#eee)">Seven-color</button>
+            <button data-color-bit="5" data-patterns="jump,gradient"
+                style="background:linear-gradient(90deg,#e33,#3c3)">Red-Green</button>
+            <button data-color-bit="3" data-patterns="jump,gradient"
+                style="background:linear-gradient(90deg,#e33,#33e)">Red-Blue</button>
+            <button data-color-bit="6" data-patterns="jump,gradient"
+                style="background:linear-gradient(90deg,#3c3,#33e)">Green-Blue</button>
+        </div>
+        <div class="slider-label"><span>speed</span><span id="speed-value">50</span></div>
+        <input type="range" class="slider" id="speed-slider" min="0" max="100" value="50">
+        <div class="tempo-row">
+            <button data-bpm-factor="0.5" title="halve the tempo">÷2</button>
+            <button id="tap" title="tap along to the beat to set the speed">Tap tempo</button>
+            <button data-bpm-factor="2" title="double the tempo">×2</button>
+        </div>
+        <div class="slider-label"><span>brightness</span><span id="brightness-value">100</span></div>
+        <input type="range" class="slider" id="brightness-slider" min="0" max="100" value="100">
+    </div>
+
+    <button id="release">release override</button>
+    <div id="status">connecting…</div>
+
+    <script>
+        const ws = new WebSocket(`ws://${location.host}/ws`);
+        const swatch = document.getElementById("swatch");
+        const bpm = document.getElementById("bpm");
+        const preset = document.getElementById("preset");
+        const overrideStatus = document.getElementById("override-status");
+        const modeButtons = document.querySelectorAll("[data-mode]");
+        const status = document.getElementById("status");
+        const hsvSliders = document.querySelectorAll(".hsv");
+        const effectButtons = document.querySelectorAll("[data-pattern]");
+        const colorToggleButtons = document.querySelectorAll("[data-color-bit]");
+        const speedSlider = document.getElementById("speed-slider");
+        const speedValue = document.getElementById("speed-value");
+        const brightnessSlider = document.getElementById("brightness-slider");
+        const brightnessValue = document.getElementById("brightness-value");
+
+        ws.onopen = () => status.textContent = "connected";
+        ws.onclose = () => status.textContent = "disconnected";
+
+        let selectedPattern = "static"; // shows static's presets up front; nothing is sent until a click
+        let selectedColors = null; // no valid default until a pattern is picked -- the valid set differs per pattern
+
+        // The lamp doesn't support arbitrary color-bit combinations -- only the
+        // fixed presets each button represents, and which presets are valid
+        // depends on the selected pattern (see lamp.c's
+        // VALID_COLORS). So this is always exclusive-select (one preset
+        // active at a time), and only buttons valid for the current pattern show.
+        function renderColorToggles() {
+            colorToggleButtons.forEach(b => {
+                const validForPattern = b.dataset.patterns.split(",").includes(selectedPattern);
+                b.hidden = !validForPattern;
+                b.classList.toggle("active", validForPattern && Number(b.dataset.colorBit) === selectedColors);
+            });
+            effectButtons.forEach(b => b.classList.toggle("active", b.dataset.pattern === selectedPattern));
+            renderSpeed();
+        }
+
+        // Seconds per color step = (101 - speed) * base, measured from slow-motion
+        // video (lamp.c's STEP_BASE_SECONDS); bpm = color steps per minute.
+        // Static doesn't animate.
+        const STEP_BASE = { breath: 0.15, gradient: 0.15, jump: 0.015, flash: 0.015 };
+        function speedToBpm(pattern, speed) {
+            return 60 / ((101 - speed) * STEP_BASE[pattern]);
+        }
+        function bpmToSpeed(pattern, bpm) {
+            return Math.round(Math.min(Math.max(101 - 60 / (bpm * STEP_BASE[pattern]), 0), 100));
+        }
+        const tapButton = document.getElementById("tap");
+        const factorButtons = document.querySelectorAll("[data-bpm-factor]");
+        function renderSpeed() {
+            const animated = selectedPattern in STEP_BASE;
+            speedSlider.disabled = tapButton.disabled = !animated;
+            factorButtons.forEach(b => b.disabled = !animated);
+            speedValue.textContent = animated
+                ? `${speedSlider.value} · ≈${Math.round(speedToBpm(selectedPattern, speedSlider.value))} bpm`
+                : "—";
+        }
+
+        let lastStatus = null;
+        ws.onmessage = (ev) => {
+            const d = lastStatus = JSON.parse(ev.data);
+            swatch.style.background = `hwb(${d.hue} ${(100 - d.saturation) * d.brightness / 100}% ${100 - d.brightness}%)`;
+            bpm.textContent = d.rate_bpm.toFixed(1);
+            document.getElementById("tempo-bpm").textContent = d.tempo_bpm.toFixed(1);
+            document.getElementById("visual-bpm").textContent = d.visual_bpm.toFixed(1);
+            preset.textContent = d.preset_name || "-";
+            overrideStatus.textContent = d.override_active
+                ? `manual override (${d.override_kind})`
+                : "automatic";
+            modeButtons.forEach(b => b.classList.toggle("active", b.dataset.mode === d.mode));
+
+            if (d.override_active && d.override_kind === "pattern") {
+                selectedPattern = d.override_pattern;
+                selectedColors = d.override_colors;
+                renderColorToggles();
+            }
+        };
+
+        // Hue/saturation/brightness map 1:1 onto the lamp's dp=11 value -- no
+        // color conversion anywhere. The --h/--s/--v vars drive the track colors.
+        const HSV_VARS = { hue: "--h", sat: "--s", bri: "--v" };
+        // One brightness value on the board (shared by dp=11 and dp=73), so the
+        // pattern section's brightness slider mirrors the color one.
+        function renderHsv() {
+            hsvSliders.forEach(el => {
+                document.getElementById(`${el.id}-value`).textContent = el.value;
+                document.body.style.setProperty(HSV_VARS[el.id], el.value); // inherited by all three sliders
+            });
+            brightnessSlider.value = brightnessValue.textContent = document.getElementById("bri").value;
+        }
+        function sendColorOverride() {
+            renderHsv();
+            const [hue, saturation, brightness] = [...hsvSliders].map(s => Number(s.value));
+            ws.send(JSON.stringify({ type: "override_set", hue, saturation, brightness }));
+        }
+        hsvSliders.forEach(el => el.addEventListener("input", sendColorOverride));
+
+        // Freeze: the status's hue/saturation/brightness is the color currently
+        // driving the lamp (the sensed one, unless an override already is).
+        document.getElementById("latch").addEventListener("click", () => {
+            if (!lastStatus) return;
+            [lastStatus.hue, lastStatus.saturation, lastStatus.brightness].forEach((v, i) => hsvSliders[i].value = v);
+            sendColorOverride();
+        });
+
+        document.getElementById("release").addEventListener("click", () => {
+            selectedPattern = "static";
+            selectedColors = null;
+            renderColorToggles();
+            ws.send(JSON.stringify({ type: "override_release" }));
+        });
+
+        modeButtons.forEach(b => b.addEventListener("click", () => {
+            modeButtons.forEach(o => o.classList.toggle("active", o === b)); // instant feedback; status confirms
+            ws.send(JSON.stringify({ type: "mode_set", mode: b.dataset.mode }));
+        }));
+
+        function sendPatternOverride() {
+            if (!selectedPattern || selectedColors === null) return; // need both a pattern and a valid color preset
+            ws.send(JSON.stringify({
+                type: "override_pattern_set",
+                pattern: selectedPattern,
+                colors: selectedColors,
+                speed: Number(speedSlider.value),
+                brightness: Number(brightnessSlider.value),
+            }));
+        }
+
+        effectButtons.forEach(b => b.addEventListener("click", () => {
+            selectedPattern = b.dataset.pattern;
+            // the previously selected color preset may not be valid for the new
+            // pattern -- default to the first valid one shown for it instead.
+            const firstValid = [...colorToggleButtons].find(cb => cb.dataset.patterns.split(",").includes(selectedPattern));
+            selectedColors = firstValid ? Number(firstValid.dataset.colorBit) : null;
+            renderColorToggles();
+            sendPatternOverride();
+        }));
+
+        colorToggleButtons.forEach(b => b.addEventListener("click", () => {
+            selectedColors = Number(b.dataset.colorBit); // always exclusive -- see renderColorToggles
+            renderColorToggles();
+            sendPatternOverride();
+        }));
+
+        // Labels follow the drag, but a pattern frame only goes out on release:
+        // each one restarts the lamp's animation and burns a revision number.
+        speedSlider.addEventListener("input", renderSpeed);
+        speedSlider.addEventListener("change", sendPatternOverride);
+        brightnessSlider.addEventListener("input", () => {
+            document.getElementById("bri").value = brightnessSlider.value;
+            renderHsv();
+        });
+        brightnessSlider.addEventListener("change", sendPatternOverride);
+
+        // Average the last few tap intervals; a pause over 2s starts over.
+        let taps = [];
+        tapButton.addEventListener("click", () => {
+            const now = performance.now();
+            if (taps.length && now - taps.at(-1) > 2000) taps = [];
+            taps = [...taps, now].slice(-6);
+            if (taps.length < 3) return;
+            const interval = (taps.at(-1) - taps[0]) / (taps.length - 1);
+            speedSlider.value = bpmToSpeed(selectedPattern, 60000 / interval);
+            renderSpeed();
+            sendPatternOverride();
+        });
+
+        // Scale in bpm space: doubling the tempo halves (101 - speed), it doesn't
+        // double the slider value. Clamps at 0..100.
+        factorButtons.forEach(b => b.addEventListener("click", () => {
+            speedSlider.value = bpmToSpeed(selectedPattern, speedToBpm(selectedPattern, speedSlider.value) * b.dataset.bpmFactor);
+            renderSpeed();
+            sendPatternOverride();
+        }));
+
+        renderHsv();
+        renderColorToggles();
+    </script>
+</body>
+
+</html>

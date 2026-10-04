@@ -1,0 +1,42 @@
+menu "Lamp bridge"
+
+config BRIDGE_WIFI_SSID
+    string "WiFi SSID"
+
+config BRIDGE_WIFI_PASSWORD
+    string "WiFi password"
+
+config BRIDGE_OSC_PORT
+    int "OSC listen port (point projectMac here)"
+    default 9000
+
+config BRIDGE_LOCAL_KEY
+    string "Lamp local_key (16 ASCII chars)"
+    help
+        The device's Tuya Cloud API local_key, used directly as bytes.
+
+config BRIDGE_APP_KEY
+    string "Beacon Mesh AppKey (32 hex chars)"
+
+config BRIDGE_SRC_ADDR
+    string "Mesh source address (4 hex chars)"
+
+config BRIDGE_DST_ADDR
+    string "Mesh destination address (4 hex chars)"
+
+config BRIDGE_SN_FLOOR
+    int "Starting sn on first boot"
+    range 0 65535
+    default 0
+    help
+        Only used when NVS has no saved counter yet. Must be above the lamp's
+        sn high-water mark for this source address, or it ignores every frame
+        If unknown: put the lamp in pairing mode, or switch to an unused
+        source address.
+
+config BRIDGE_REVISION_FLOOR
+    int "Starting scene revision on first boot"
+    range 0 255
+    default 0
+
+endmenu
