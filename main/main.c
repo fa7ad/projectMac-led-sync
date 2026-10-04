@@ -540,8 +540,11 @@ static void json_escape(char *out, size_t n, const char *in)
 }
 
 /* Runs on the httpd task (queued by status_task). */
+static volatile bool s_push_queued; /* one status push in flight at most */
+
 static void push_status(void *arg)
 {
+    s_push_queued = false;
     char preset[sizeof(s_preset_name) * 6 + 1], json[1024];
     xSemaphoreTake(s_lock, portMAX_DELAY);
     on_state_changed(); /* retries a rate-limited send even with no OSC flowing, e.g. a slider drag's last value */
@@ -570,7 +573,9 @@ static void push_status(void *arg)
     if (httpd_get_client_list(s_server, &n, fds) == ESP_OK) {
         for (size_t i = 0; i < n; i++) {
             if (httpd_ws_get_fd_info(s_server, fds[i]) == HTTPD_WS_CLIENT_WEBSOCKET) {
-                httpd_ws_send_frame_async(s_server, fds[i], &frame);
+                if (httpd_ws_send_frame_async(s_server, fds[i], &frame) != ESP_OK) {
+                    httpd_sess_trigger_close(s_server, fds[i]); /* dead client (e.g. a locked phone): drop it */
+                }
             }
         }
     }
@@ -579,7 +584,13 @@ static void push_status(void *arg)
 static void status_task(void *arg)
 {
     while (1) {
-        httpd_queue_work(s_server, push_status, NULL);
+        /* skip a tick rather than pile up work while a slow client stalls httpd */
+        if (!s_push_queued) {
+            s_push_queued = true; /* before queueing: httpd outranks us and may run it at once */
+            if (httpd_queue_work(s_server, push_status, NULL) != ESP_OK) {
+                s_push_queued = false;
+            }
+        }
         vTaskDelay(pdMS_TO_TICKS(200));
     }
 }
@@ -589,6 +600,7 @@ static void web_init(void)
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
     cfg.max_open_sockets = 4; /* leaves LWIP sockets for OSC */
     cfg.lru_purge_enable = true;
+    cfg.send_wait_timeout = 2; /* seconds; default 5 stalls everyone behind one dead client */
     ESP_ERROR_CHECK(httpd_start(&s_server, &cfg));
     httpd_uri_t index = {.uri = "/", .method = HTTP_GET, .handler = index_handler};
     httpd_uri_t ws = {.uri = "/ws", .method = HTTP_GET, .handler = ws_handler, .is_websocket = true};
