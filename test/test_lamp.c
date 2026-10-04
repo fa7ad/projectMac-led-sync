@@ -1,4 +1,4 @@
-/* Host-side check of lamp.c (no ESP-IDF needed). From esp32-bridge/:
+/* Host-side check of lamp.c (no ESP-IDF needed). From the repo root:
  *
  *   cc -Wall -Werror -o /tmp/test_lamp test/test_lamp.c main/lamp.c -lm && /tmp/test_lamp
  *

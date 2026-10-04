@@ -2,6 +2,7 @@
 PLAN.md
 
 # ESP-IDF build artifacts + local config (WiFi credentials, lamp keys)
-esp32-bridge/build/
-esp32-bridge/sdkconfig
-esp32-bridge/sdkconfig.old
+build/
+sdkconfig
+sdkconfig.old
+.cache/

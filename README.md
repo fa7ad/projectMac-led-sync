@@ -6,13 +6,14 @@ maps the scene's colors and tempo to lamp commands, encrypts them into Tuya beac
 and broadcasts them over BLE. It also serves a web control panel. No host process needed,
 and it runs fine off a battery.
 
+The repo root is the ESP-IDF project:
+
 ```
-esp32-bridge/            ESP-IDF project
-├── main/main.c          WiFi, OSC listener, pipeline, sn counters, BLE advertising, web server
-├── main/lamp.c          Tuya codec, DP frame builders, scene -> lamp mapping (pure C)
-├── main/index.html      web panel, embedded into the firmware
-├── main/Kconfig.projbuild   menuconfig options (WiFi, lamp keys, counters)
-└── test/test_lamp.c     host-side tests for lamp.c
+main/main.c            WiFi, OSC listener, pipeline, sn counters, BLE advertising, web server
+main/lamp.c            Tuya codec, DP frame builders, scene -> lamp mapping (pure C)
+main/index.html        web panel, embedded into the firmware
+main/Kconfig.projbuild menuconfig options (WiFi, lamp keys, counters)
+test/test_lamp.c       host-side tests for lamp.c
 ```
 
 ## Lamp pairing keys
@@ -28,8 +29,7 @@ Specific to one device + account pairing, obtained via the Smart Life app:
 
 ## Build and flash
 
-With ESP-IDF activated (EIM installs: `source ~/.espressif/tools/activate_idf_v6.1.fish`),
-from `esp32-bridge/`:
+With ESP-IDF activated (EIM installs: `source ~/.espressif/tools/activate_idf_v6.1.fish`):
 
 ```
 idf.py set-target esp32c3     # first time only
@@ -62,7 +62,7 @@ accepting frames until you do one of those.
 
 ## Tests
 
-`lamp.c` has no ESP-IDF dependencies. From `esp32-bridge/`:
+`lamp.c` has no ESP-IDF dependencies:
 
 ```
 cc -Wall -Werror -o /tmp/test_lamp test/test_lamp.c main/lamp.c -lm && /tmp/test_lamp
