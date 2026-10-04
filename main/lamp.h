@@ -28,6 +28,7 @@ typedef struct {
     double vibrant_h, vibrant_s, vibrant_v; /* 0.0-1.0 each */
     double brightness;
     double tempo_bpm, visual_bpm;
+    int visual_scale_pct; /* visual_bpm counts every on-screen cut; 50 = half rate */
     double hue_hold_ref_deg, hue_hold_since; /* seconds, caller's monotonic clock */
 } lamp_scene_t;
 

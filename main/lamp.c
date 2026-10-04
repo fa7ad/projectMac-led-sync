@@ -192,7 +192,7 @@ static double circular_distance(double a, double b)
 
 void lamp_scene_init(lamp_scene_t *s, double now)
 {
-    *s = (lamp_scene_t){.tempo_bpm = 120.0, .visual_bpm = 120.0, .hue_hold_since = now};
+    *s = (lamp_scene_t){.tempo_bpm = 120.0, .visual_bpm = 120.0, .visual_scale_pct = 50, .hue_hold_since = now};
 }
 
 void lamp_set_vibrant(lamp_scene_t *s, double h, double sat, double v, double now)
@@ -209,7 +209,8 @@ void lamp_set_vibrant(lamp_scene_t *s, double h, double sat, double v, double no
 
 double lamp_rate_bpm(const lamp_scene_t *s, double now)
 {
-    return now - s->hue_hold_since > HUE_HOLD_THRESHOLD_SECONDS ? s->tempo_bpm : s->visual_bpm;
+    return now - s->hue_hold_since > HUE_HOLD_THRESHOLD_SECONDS ? s->tempo_bpm
+                                                                : s->visual_bpm * s->visual_scale_pct / 100.0;
 }
 
 /* ---- mapping ----

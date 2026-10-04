@@ -30,6 +30,7 @@ static lamp_scene_t scene(double h, double s, double v, double visual_bpm)
     lamp_scene_init(&sc, 0);
     lamp_set_vibrant(&sc, h, s, v, 0);
     sc.visual_bpm = visual_bpm;
+    sc.visual_scale_pct = 100; /* mapping cases below use the raw rate */
     return sc;
 }
 
@@ -102,6 +103,11 @@ static void test_rate_bpm_hold(void)
     CHECK(lamp_rate_bpm(&sc, 2.1) == 90);   /* held past 2s: falls back to audio tempo */
     lamp_set_vibrant(&sc, 0.5, 1, 1, 2.2);  /* real hue change resets the hold */
     CHECK(lamp_rate_bpm(&sc, 2.3) == 140);
+    sc.visual_scale_pct = 50; /* scales visual only... */
+    CHECK(lamp_rate_bpm(&sc, 2.3) == 70);
+    CHECK(lamp_rate_bpm(&sc, 5.0) == 90); /* ...not the audio fallback */
+    lamp_scene_init(&sc, 0);
+    CHECK(sc.visual_scale_pct == 50); /* default */
 }
 
 int main(void)

@@ -215,6 +215,12 @@
         <button data-mode="pattern" title="rate-matched pattern (dp=73)">Pattern</button>
         <button data-mode="combined" title="pattern, with dp=11 for hues the palette can't show">Combined</button>
     </div>
+    <h2>visual rate</h2>
+    <div class="effect-buttons">
+        <button data-visual-scale="25" title="a quarter of projectMac's visual bpm">¼×</button>
+        <button data-visual-scale="50" title="half of projectMac's visual bpm">½×</button>
+        <button data-visual-scale="100" title="projectMac's visual bpm as-is">1×</button>
+    </div>
 
     <h1>manual override</h1>
 
@@ -283,6 +289,7 @@
         const preset = document.getElementById("preset");
         const overrideStatus = document.getElementById("override-status");
         const modeButtons = document.querySelectorAll("[data-mode]");
+        const scaleButtons = document.querySelectorAll("[data-visual-scale]");
         const status = document.getElementById("status");
         const hsvSliders = document.querySelectorAll(".hsv");
         const effectButtons = document.querySelectorAll("[data-pattern]");
@@ -346,6 +353,7 @@
                 ? `manual override (${d.override_kind})`
                 : "automatic";
             modeButtons.forEach(b => b.classList.toggle("active", b.dataset.mode === d.mode));
+            scaleButtons.forEach(b => b.classList.toggle("active", Number(b.dataset.visualScale) === d.visual_scale_pct));
 
             if (d.override_active && d.override_kind === "pattern") {
                 selectedPattern = d.override_pattern;
@@ -387,6 +395,13 @@
             renderColorToggles();
             ws.send(JSON.stringify({ type: "override_release" }));
         });
+
+        // Scales only the visual bpm (every on-screen cut counts); the audio
+        // tempo fallback is untouched.
+        scaleButtons.forEach(b => b.addEventListener("click", () => {
+            scaleButtons.forEach(o => o.classList.toggle("active", o === b));
+            ws.send(JSON.stringify({ type: "visual_scale_set", percent: Number(b.dataset.visualScale) }));
+        }));
 
         modeButtons.forEach(b => b.addEventListener("click", () => {
             modeButtons.forEach(o => o.classList.toggle("active", o === b)); // instant feedback; status confirms
