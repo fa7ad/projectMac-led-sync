@@ -395,12 +395,15 @@ static void osc_task(void *arg)
 
 /* ---- web panel ---- */
 
-extern const char index_html[] asm("_binary_index_html_start");
+extern const char index_gz_start[] asm("_binary_index_html_gz_start");
+extern const char index_gz_end[] asm("_binary_index_html_gz_end");
 static httpd_handle_t s_server;
 
 static esp_err_t index_handler(httpd_req_t *req)
 {
-    return httpd_resp_send(req, index_html, HTTPD_RESP_USE_STRLEN);
+    httpd_resp_set_type(req, "text/html");
+    httpd_resp_set_hdr(req, "Content-Encoding", "gzip"); /* gzipped at build time, see CMakeLists.txt */
+    return httpd_resp_send(req, index_gz_start, index_gz_end - index_gz_start);
 }
 
 /* ponytail: flat-object key lookup, enough for the panel's own messages;
