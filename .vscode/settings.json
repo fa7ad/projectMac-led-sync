@@ -1,0 +1,4 @@
+{
+    "cmake.sourceDirectory": "${workspaceFolder}",
+    "idf.currentSetup": "/Users/fahad/.espressif/v6.1/esp-idf"
+}
