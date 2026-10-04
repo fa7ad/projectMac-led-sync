@@ -54,9 +54,11 @@ accepting frames until you do one of those.
   port to `9000`. Don't use a broadcast address: many routers drop broadcast to WiFi clients.
 - Open `http://lamp.home/` (or the IP) from any browser on the LAN:
   - live scene readout: color, the bpm driving the lamp, audio and visual bpm, preset name
+  - visual rate (¼×/½×/1×, default ½×) and audio rate (½×/1×/2×) multipliers
   - lamp mode: **Color** (follow projectMac's dominant color), **Pattern** (built-in
     effect picked by tempo, speed matched to the beat), or **Combined** (pattern, plus
-    exact color for hues the effect palette can't show)
+    exact color for hues the effect palette can't show). In Pattern and Combined, a color
+    that holds still for a full beat strobes on the audio beat instead.
   - manual override: hue/saturation/brightness sliders, "Latch current color", or a
     pattern effect with color preset, speed (shown in bpm), tap tempo, and ÷2/×2
 

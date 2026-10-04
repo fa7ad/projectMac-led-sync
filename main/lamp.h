@@ -29,6 +29,7 @@ typedef struct {
     double brightness;
     double tempo_bpm, visual_bpm;
     int visual_scale_pct; /* visual_bpm counts every on-screen cut; 50 = half rate */
+    int audio_scale_pct;  /* applied wherever tempo_bpm drives the lamp */
     double hue_hold_ref_deg, hue_hold_since; /* seconds, caller's monotonic clock */
 } lamp_scene_t;
 

@@ -173,10 +173,10 @@ bool lamp_colors_valid(int pattern, int colors)
 /* ---- scene state ----
  * rate_bpm: projectMac's visual/bpm (on-screen strobe rate) normally wins,
  * but once the dominant hue has held still past the threshold there's no
- * visual rate to track, so it falls back to the audio tempo/bpm. */
+ * visual rate to track, so it falls back to the audio tempo/bpm -- and the
+ * mapping breaks the static scene up with a strobe of that color on the beat. */
 
 #define HUE_HOLD_TOLERANCE_DEG 8.0
-#define HUE_HOLD_THRESHOLD_SECONDS 2.0
 
 static double pymod(double a, double m) /* Python's float %: result takes the divisor's sign */
 {
@@ -192,7 +192,8 @@ static double circular_distance(double a, double b)
 
 void lamp_scene_init(lamp_scene_t *s, double now)
 {
-    *s = (lamp_scene_t){.tempo_bpm = 120.0, .visual_bpm = 120.0, .visual_scale_pct = 50, .hue_hold_since = now};
+    *s = (lamp_scene_t){.tempo_bpm = 120.0, .visual_bpm = 120.0, .visual_scale_pct = 50,
+                        .audio_scale_pct = 100, .hue_hold_since = now};
 }
 
 void lamp_set_vibrant(lamp_scene_t *s, double h, double sat, double v, double now)
@@ -207,10 +208,18 @@ void lamp_set_vibrant(lamp_scene_t *s, double h, double sat, double v, double no
     s->vibrant_v = v;
 }
 
+/* A hue that survives one full audio beat counts as held, so holds get broken
+ * up sooner in faster music. 0.5s if there's no usable tempo. */
+static bool hue_held(const lamp_scene_t *s, double now)
+{
+    double beat = s->tempo_bpm > 0 ? 60 / s->tempo_bpm : 0.5;
+    return now - s->hue_hold_since > beat;
+}
+
 double lamp_rate_bpm(const lamp_scene_t *s, double now)
 {
-    return now - s->hue_hold_since > HUE_HOLD_THRESHOLD_SECONDS ? s->tempo_bpm
-                                                                : s->visual_bpm * s->visual_scale_pct / 100.0;
+    return hue_held(s, now) ? s->tempo_bpm * s->audio_scale_pct / 100.0
+                            : s->visual_bpm * s->visual_scale_pct / 100.0;
 }
 
 /* ---- mapping ----
@@ -357,7 +366,9 @@ lamp_target_t lamp_color_follow(const lamp_scene_t *s)
 static lamp_target_t pattern_follow(const lamp_scene_t *s, double now)
 {
     double bpm = lamp_rate_bpm(s, now);
-    int pattern = pattern_for_bpm(bpm);
+    /* a held hue (only brightness drifting, if anything) is boring as-is:
+     * strobe that color on the audio beat instead of the tempo band's effect */
+    int pattern = hue_held(s, now) ? PATTERN_FLASH : pattern_for_bpm(bpm);
     double hue_deg = s->vibrant_h * 360;
     int colors = (pattern == PATTERN_JUMP || pattern == PATTERN_GRADIENT)
                      ? hue_sat_to_color_combo(hue_deg, s->vibrant_s)
@@ -371,7 +382,7 @@ lamp_target_t lamp_map(const lamp_scene_t *s, int mode, double now)
     if (mode == MODE_COLOR) {
         return lamp_color_follow(s);
     }
-    if (mode == MODE_PATTERN || covered_by_pattern_palette(s->vibrant_h * 360, s->vibrant_s)) {
+    if (mode == MODE_PATTERN || hue_held(s, now) || covered_by_pattern_palette(s->vibrant_h * 360, s->vibrant_s)) {
         return pattern_follow(s, now);
     }
     return lamp_color_follow(s);

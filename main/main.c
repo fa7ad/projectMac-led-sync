@@ -491,10 +491,10 @@ static bool handle_command(const char *msg)
         s_override.brightness = brightness;
     } else if (!strcmp(type, "override_release")) {
         s_override.active = false;
-    } else if (!strcmp(type, "visual_scale_set")) {
+    } else if (!strcmp(type, "visual_scale_set") || !strcmp(type, "audio_scale_set")) {
         int pct;
-        if (!json_int(msg, "percent", &pct) || pct < 10 || pct > 200) return false;
-        s_scene.visual_scale_pct = pct;
+        if (!json_int(msg, "percent", &pct) || pct < 10 || pct > 400) return false;
+        *(type[0] == 'v' ? &s_scene.visual_scale_pct : &s_scene.audio_scale_pct) = pct;
     } else if (!strcmp(type, "mode_set")) {
         int mode;
         if (!json_str(msg, "mode", val, sizeof(val)) || (mode = name_index(val, MODE_NAMES, 3)) < 0) return false;
@@ -557,11 +557,11 @@ static void push_status(void *arg)
                               : lamp_color_follow(&s_scene);
     json_escape(preset, sizeof(preset), s_preset_name);
     int len = snprintf(json, sizeof(json),
-        "{\"vibrant_hsv\":[%.4f,%.4f,%.4f],\"rate_bpm\":%.2f,\"tempo_bpm\":%.2f,\"visual_bpm\":%.2f,\"visual_scale_pct\":%d,\"preset_name\":\"%s\","
+        "{\"vibrant_hsv\":[%.4f,%.4f,%.4f],\"rate_bpm\":%.2f,\"tempo_bpm\":%.2f,\"visual_bpm\":%.2f,\"visual_scale_pct\":%d,\"audio_scale_pct\":%d,\"preset_name\":\"%s\","
         "\"override_active\":%s,\"override_kind\":\"%s\",\"override_pattern\":\"%s\","
         "\"override_speed\":%d,\"override_colors\":%d,\"mode\":\"%s\","
         "\"hue\":%d,\"saturation\":%d,\"brightness\":%d}",
-        s_scene.vibrant_h, s_scene.vibrant_s, s_scene.vibrant_v, lamp_rate_bpm(&s_scene, now), s_scene.tempo_bpm, s_scene.visual_bpm, s_scene.visual_scale_pct, preset,
+        s_scene.vibrant_h, s_scene.vibrant_s, s_scene.vibrant_v, lamp_rate_bpm(&s_scene, now), s_scene.tempo_bpm, s_scene.visual_bpm, s_scene.visual_scale_pct, s_scene.audio_scale_pct, preset,
         s_override.active ? "true" : "false", s_override.kind == TARGET_COLOR ? "color" : "pattern",
         PATTERN_NAMES[s_override.pattern], s_override.speed, s_override.colors, MODE_NAMES[s_mode],
         color.a, color.b, color.c);

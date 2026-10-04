@@ -92,22 +92,43 @@ static void test_mapping(void)
     CHECK(target_is(lamp_map(&sc, MODE_COMBINED, 0), TARGET_COLOR, 90, 100, 100, 0));
     sc = scene(90 / 360.0, 0.05, 1, 120); /* near-white counts as covered */
     CHECK(lamp_map(&sc, MODE_COMBINED, 0).kind == TARGET_PATTERN);
+
+    sc = scene(0, 1, 1, 80);
+    sc.tempo_bpm = 160; /* one beat = 0.375s: not held at 0.3, held at 0.4 */
+    CHECK(lamp_map(&sc, MODE_PATTERN, 0.3).a != PATTERN_FLASH);
+    CHECK(lamp_map(&sc, MODE_PATTERN, 0.4).a == PATTERN_FLASH);
+
+    /* hue held past a beat: strobe the held color on the audio beat (flash,
+     * 120 bpm -> speed 68), in pattern and combined mode alike -- even for a
+     * gap hue combined would otherwise show as dp=11 (90 deg -> nearest yellow) */
+    sc = scene(0, 1, 1, 80);
+    sc.tempo_bpm = 120;
+    CHECK(target_is(lamp_map(&sc, MODE_PATTERN, 1.0), TARGET_PATTERN, PATTERN_FLASH, COLOR_RED, 68, 100));
+    sc = scene(90 / 360.0, 1, 1, 80);
+    sc.tempo_bpm = 120;
+    CHECK(target_is(lamp_map(&sc, MODE_COMBINED, 1.0), TARGET_PATTERN, PATTERN_FLASH, 0x10, 68, 100));
+    CHECK(lamp_map(&sc, MODE_COLOR, 1.0).kind == TARGET_COLOR); /* color mode stays a pure follow */
+    sc.audio_scale_pct = 200; /* 2x: two flashes per beat (240 -> speed 84), hold still one real beat */
+    CHECK(target_is(lamp_map(&sc, MODE_PATTERN, 1.0), TARGET_PATTERN, PATTERN_FLASH, 0x10, 84, 100));
 }
 
 static void test_rate_bpm_hold(void)
 {
     lamp_scene_t sc = scene(0, 1, 1, 140);
     sc.tempo_bpm = 90;
-    CHECK(lamp_rate_bpm(&sc, 1.0) == 140); /* visual wins while the hue moves */
-    lamp_set_vibrant(&sc, 0.01, 1, 1, 1.5); /* 3.6 deg drift: hold not reset */
-    CHECK(lamp_rate_bpm(&sc, 2.1) == 90);   /* held past 2s: falls back to audio tempo */
-    lamp_set_vibrant(&sc, 0.5, 1, 1, 2.2);  /* real hue change resets the hold */
-    CHECK(lamp_rate_bpm(&sc, 2.3) == 140);
+    CHECK(lamp_rate_bpm(&sc, 0.3) == 140); /* visual wins while the hue moves */
+    lamp_set_vibrant(&sc, 0.01, 1, 1, 0.5); /* 3.6 deg drift: hold not reset */
+    CHECK(lamp_rate_bpm(&sc, 0.7) == 90);   /* held past one beat (0.67s at 90): audio tempo */
+    lamp_set_vibrant(&sc, 0.5, 1, 1, 0.8);  /* real hue change resets the hold */
+    CHECK(lamp_rate_bpm(&sc, 0.9) == 140);
     sc.visual_scale_pct = 50; /* scales visual only... */
-    CHECK(lamp_rate_bpm(&sc, 2.3) == 70);
-    CHECK(lamp_rate_bpm(&sc, 5.0) == 90); /* ...not the audio fallback */
+    CHECK(lamp_rate_bpm(&sc, 0.9) == 70);
+    CHECK(lamp_rate_bpm(&sc, 2.0) == 90); /* ...not the audio fallback */
+    sc.audio_scale_pct = 200;              /* which has its own scale */
+    CHECK(lamp_rate_bpm(&sc, 2.0) == 180);
+    CHECK(lamp_rate_bpm(&sc, 0.9) == 70);
     lamp_scene_init(&sc, 0);
-    CHECK(sc.visual_scale_pct == 50); /* default */
+    CHECK(sc.visual_scale_pct == 50 && sc.audio_scale_pct == 100); /* defaults */
 }
 
 int main(void)
