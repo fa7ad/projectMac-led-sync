@@ -53,12 +53,14 @@ static uint8_t adv_payload[ADV_LEN] = {
 };
 
 static volatile bool s_advertising = false;
+/* ponytail: BLE adv held until wifi has an IP -- starting it mid-SAE made the first auth fail (reason 202). No wifi = no BLE; drop the gate if that bites. */
+static volatile bool s_wifi_up = false;
 
 static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
 {
     switch (event) {
     case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT:
-        if (!s_advertising) {
+        if (!s_advertising && s_wifi_up) {
             static esp_ble_adv_params_t adv_params = {
                 .adv_int_min = 0x20, /* 20ms */
                 .adv_int_max = 0x40, /* 40ms */
@@ -152,11 +154,17 @@ static void ble_init(void)
 
 static void wifi_event_handler(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
+    if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
+        wifi_event_sta_disconnected_t *ev = (wifi_event_sta_disconnected_t *)data;
+        ESP_LOGW(TAG, "wifi disconnected, reason %d, rssi %d", ev->reason, ev->rssi);
+    }
     if (base == WIFI_EVENT && (id == WIFI_EVENT_STA_START || id == WIFI_EVENT_STA_DISCONNECTED)) {
         /* ponytail: retries forever with no backoff -- fine for a single AP */
         esp_wifi_connect();
     } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t *ev = (ip_event_got_ip_t *)data;
+        s_wifi_up = true;
+        esp_ble_gap_config_adv_data_raw(adv_payload, ADV_LEN); /* fires the deferred adv start */
         ESP_LOGI(TAG, "wifi up -- web panel at http://" IPSTR "/, point projectMac's OSC at " IPSTR ":%d",
                  IP2STR(&ev->ip_info.ip), IP2STR(&ev->ip_info.ip), CONFIG_BRIDGE_OSC_PORT);
     }
@@ -177,6 +185,9 @@ static void wifi_init(void)
         .sta = {
             .ssid = CONFIG_BRIDGE_WIFI_SSID,
             .password = CONFIG_BRIDGE_WIFI_PASSWORD,
+            .threshold.authmode = WIFI_AUTH_WPA2_PSK,
+            .sae_pwe_h2e = WPA3_SAE_PWE_BOTH,
+            .pmf_cfg = { .capable = true, .required = false },
         },
     };
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
@@ -321,8 +332,8 @@ static float osc_float(const char *p)
     return f;
 }
 
-/* Single messages only -- projectMac sends one address per datagram, no bundles. */
-static void handle_osc(const char *buf, int len)
+/* caller holds s_lock */
+static void handle_message(const char *buf, int len)
 {
     int addr_len = strnlen(buf, len);
     int off = osc_padded(addr_len);
