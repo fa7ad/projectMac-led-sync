@@ -365,7 +365,6 @@ static void handle_message(const char *buf, int len)
     }
 
     const char *a = buf + 12;
-    xSemaphoreTake(s_lock, portMAX_DELAY);
     if (!strcmp(a, "scene/vibrant") && nf == 3) {
         lamp_set_vibrant(&s_scene, f[0], f[1], f[2], now_s());
     } else if (!strcmp(a, "scene/brightness") && nf == 1) {
@@ -377,7 +376,32 @@ static void handle_message(const char *buf, int len)
     } else if (!strcmp(a, "preset/name")) {
         strcpy(s_preset_name, str);
     }
-    /* every /projectmac message re-evaluates -- also how a rate-limited send
+}
+
+/* projectMac sends a frame as one OSC bundle; a bare message is still accepted. */
+static void osc_dispatch(const char *buf, int len)
+{
+    if (len < 16 || memcmp(buf, "#bundle", 8) != 0) {
+        handle_message(buf, len);
+        return;
+    }
+    for (int off = 16; off + 4 <= len;) { /* skip "#bundle\0" + 8-byte timetag */
+        int n = (int)((uint32_t)(uint8_t)buf[off] << 24 | (uint32_t)(uint8_t)buf[off + 1] << 16 |
+                      (uint32_t)(uint8_t)buf[off + 2] << 8 | (uint8_t)buf[off + 3]);
+        off += 4;
+        if (n <= 0 || n > len - off) {
+            return;
+        }
+        osc_dispatch(buf + off, n); /* nested bundles recurse */
+        off += n;
+    }
+}
+
+static void handle_osc(const char *buf, int len)
+{
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    osc_dispatch(buf, len);
+    /* every datagram re-evaluates -- also how a rate-limited send
      * or the hue-hold bpm switch gets picked up */
     on_state_changed();
     xSemaphoreGive(s_lock);
@@ -395,7 +419,7 @@ static void osc_task(void *arg)
         ESP_LOGE(TAG, "osc socket/bind failed: errno %d", errno);
         abort();
     }
-    char buf[512];
+    static char buf[1472]; /* a bundle is one datagram, up to ~MTU */
     while (1) {
         int len = recv(sock, buf, sizeof(buf), 0);
         if (len > 0) {
