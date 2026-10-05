@@ -177,6 +177,7 @@ bool lamp_colors_valid(int pattern, int colors)
  * mapping breaks the static scene up with a strobe of that color on the beat. */
 
 #define HUE_HOLD_TOLERANCE_DEG 8.0
+#define HUE_HOLD_BEATS 0.5
 
 static double pymod(double a, double m) /* Python's float %: result takes the divisor's sign */
 {
@@ -208,12 +209,12 @@ void lamp_set_vibrant(lamp_scene_t *s, double h, double sat, double v, double no
     s->vibrant_v = v;
 }
 
-/* A hue that survives one full audio beat counts as held, so holds get broken
- * up sooner in faster music. 0.5s if there's no usable tempo. */
+/* A hue that survives half an audio beat counts as held, so holds get broken
+ * up sooner in faster music. 0.25s if there's no usable tempo. */
 static bool hue_held(const lamp_scene_t *s, double now)
 {
     double beat = s->tempo_bpm > 0 ? 60 / s->tempo_bpm : 0.5;
-    return now - s->hue_hold_since > beat;
+    return now - s->hue_hold_since > beat * HUE_HOLD_BEATS;
 }
 
 double lamp_rate_bpm(const lamp_scene_t *s, double now)

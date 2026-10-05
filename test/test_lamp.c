@@ -94,11 +94,11 @@ static void test_mapping(void)
     CHECK(lamp_map(&sc, MODE_COMBINED, 0).kind == TARGET_PATTERN);
 
     sc = scene(0, 1, 1, 80);
-    sc.tempo_bpm = 160; /* one beat = 0.375s: not held at 0.3, held at 0.4 */
-    CHECK(lamp_map(&sc, MODE_PATTERN, 0.3).a != PATTERN_FLASH);
-    CHECK(lamp_map(&sc, MODE_PATTERN, 0.4).a == PATTERN_FLASH);
+    sc.tempo_bpm = 160; /* half a beat = 0.19s: not held at 0.1, held at 0.3 */
+    CHECK(lamp_map(&sc, MODE_PATTERN, 0.1).a != PATTERN_FLASH);
+    CHECK(lamp_map(&sc, MODE_PATTERN, 0.3).a == PATTERN_FLASH);
 
-    /* hue held past a beat: strobe the held color on the audio beat (flash,
+    /* hue held past half a beat: strobe the held color on the audio beat (flash,
      * 120 bpm -> speed 68), in pattern and combined mode alike -- even for a
      * gap hue combined would otherwise show as dp=11 (90 deg -> nearest yellow) */
     sc = scene(0, 1, 1, 80);
@@ -118,7 +118,7 @@ static void test_rate_bpm_hold(void)
     sc.tempo_bpm = 90;
     CHECK(lamp_rate_bpm(&sc, 0.3) == 140); /* visual wins while the hue moves */
     lamp_set_vibrant(&sc, 0.01, 1, 1, 0.5); /* 3.6 deg drift: hold not reset */
-    CHECK(lamp_rate_bpm(&sc, 0.7) == 90);   /* held past one beat (0.67s at 90): audio tempo */
+    CHECK(lamp_rate_bpm(&sc, 0.7) == 90);   /* held past half a beat (0.33s at 90): audio tempo */
     lamp_set_vibrant(&sc, 0.5, 1, 1, 0.8);  /* real hue change resets the hold */
     CHECK(lamp_rate_bpm(&sc, 0.9) == 140);
     sc.visual_scale_pct = 50; /* scales visual only... */
